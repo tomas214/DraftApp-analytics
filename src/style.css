@@ -1,0 +1,139 @@
+/* Con `style` en la config, Framework NO aplica `theme`: hay que importar el tema acá.
+   Equivale a theme: ["default", "dashboard"] (claro = air, oscuro = near-midnight, según el sistema). */
+@import url("observablehq:default.css");
+@import url("observablehq:theme-air.css") (prefers-color-scheme: light);
+@import url("observablehq:theme-near-midnight.css") (prefers-color-scheme: dark);
+@import url("observablehq:theme-alt.css");
+@import url("observablehq:theme-wide.css");
+
+:root {
+  --gap: 1rem;
+}
+
+h1 {
+  max-width: none;
+  margin-bottom: 0.25rem;
+}
+
+.subtitulo {
+  color: var(--theme-foreground-muted);
+  margin: 0 0 1rem;
+  max-width: none;
+}
+
+.card h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.card h3 {
+  font-size: 0.75rem;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--theme-foreground-muted);
+  margin: 0.1rem 0 0.75rem;
+}
+
+.card {
+  max-width: none;
+  margin: 0 0 var(--gap);
+}
+
+/* Barra de filtros globales */
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  align-items: flex-start;
+  padding: 0.75rem 1rem;
+  margin: 0 0 var(--gap);
+  background: var(--theme-background-alt);
+  border: 1px solid var(--theme-foreground-faintest);
+  border-radius: 0.5rem;
+}
+.filtros > * {
+  margin: 0;
+  max-width: 100%;
+  width: auto !important;
+  flex: 0 0 auto;
+}
+.filtros input[type="date"] {
+  width: 9.5rem;
+}
+.filtros label {
+  font-size: 0.8rem;
+}
+
+/* Indicadores */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--gap);
+  margin-bottom: var(--gap);
+}
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 1rem;
+  border-left: 4px solid #4269d0;
+}
+.kpi-titulo {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--theme-foreground-muted);
+}
+.kpi-valor {
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.kpi-nota {
+  font-size: 0.75rem;
+  color: var(--theme-foreground-faint);
+}
+
+/* Grilla de visuales: 2 columnas en pantalla ancha, 1 en chica */
+.grid-bi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  gap: var(--gap);
+}
+.grid-bi .card {
+  margin: 0;
+  min-width: 0;
+}
+
+.vacio {
+  text-align: center;
+  color: var(--theme-foreground-muted);
+  padding: 2rem;
+}
+
+.boton {
+  background: #4269d0;
+  color: #fff;
+  border: 0;
+  border-radius: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin: 0.5rem 0;
+}
+.boton:hover {
+  filter: brightness(1.1);
+}
+
+@media (max-width: 640px) {
+  .kpi-valor {
+    font-size: 1.5rem;
+  }
+  .filtros {
+    padding: 0.5rem;
+  }
+}

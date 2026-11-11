@@ -1,0 +1,20 @@
+{
+  "name": "draftapp-analytics",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Sitio estático de analítica de DraftApp (Observable Framework)",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "observable preview",
+    "build": "observable build",
+    "clean": "rimraf dist src/.observablehq/cache",
+    "observable": "observable"
+  },
+  "dependencies": {
+    "@observablehq/framework": "^1.13.4"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1"
+  }
+}

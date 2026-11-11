@@ -1,0 +1,7 @@
+node_modules/
+dist/
+# Caché de data loaders y módulos npm de Observable Framework
+.observablehq/cache/
+src/.observablehq/cache/
+.env
+.DS_Store
