@@ -32,9 +32,29 @@ export function prepararDatos(raw) {
       });
     }
   }
+  // Una fila por partida (para la tabla de detalle).
+  const partidas = raw.partidas.map((p) => {
+    const en = enf.get(p.enfrentamiento_id);
+    const ev = eve.get(en.evento_id);
+    return {
+      partida_id: p.id,
+      fecha: ev.fecha,
+      evento: ev.nombre,
+      formato: ev.formato,
+      ronda: en.ronda,
+      partida: p.numero,
+      jugador_a: jug.get(p.jugador_a),
+      color_a: nombreColor(p.color_a),
+      jugador_b: jug.get(p.jugador_b),
+      color_b: nombreColor(p.color_b),
+      ganador: jug.get(p.ganador_id),
+      duracion_min: p.duracion_min
+    };
+  });
   const fechas = raw.eventos.map((e) => new Date(e.fecha).getTime());
   return {
     filas,
+    partidas,
     jugadores: raw.jugadores.map((j) => j.nombre),
     colores: [...new Set(filas.map((f) => f.color))],
     fechaMin: new Date(Math.min(...fechas)),
@@ -47,6 +67,12 @@ export function filtrar(filas, {desde, hasta, jugadores, colores}) {
   const js = new Set(jugadores);
   const cs = new Set(colores);
   return filas.filter((f) => f.fecha >= desde && f.fecha <= hasta && js.has(f.jugador) && cs.has(f.color));
+}
+
+/** Partidas (una fila c/u) en las que participa algún jugador que cumple los filtros. */
+export function filtrarPartidas(datos, filtros) {
+  const ids = new Set(filtrar(datos.filas, filtros).map((f) => f.partida_id));
+  return datos.partidas.filter((p) => ids.has(p.partida_id));
 }
 
 export function resumen(filas) {

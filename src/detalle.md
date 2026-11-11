@@ -8,7 +8,7 @@ title: Detalle
 
 ```js
 import * as Inputs from "npm:@observablehq/inputs";
-import {prepararDatos, filtrar, porJugador} from "./components/datos.js";
+import {prepararDatos, filtrar, filtrarPartidas, porJugador} from "./components/datos.js";
 import {crearFiltros} from "./components/filtros.js";
 import {botonCSV} from "./components/csv.js";
 import {pct, num, fechaCorta} from "./components/tema.js";
@@ -23,6 +23,13 @@ const filtros = view(crearFiltros(datos));
 ```js
 const filas = filtrar(datos.filas, filtros);
 const resumenJugadores = porJugador(filas);
+// La tabla usa UNA fila por partida: entra si participa algún jugador seleccionado.
+const partidas = filtrarPartidas(datos, filtros);
+const columnas = {
+  fecha: "Fecha", evento: "Evento", ronda: "Ronda", partida: "Partida",
+  jugador_a: "Jugador A", color_a: "Color A", jugador_b: "Jugador B", color_b: "Color B",
+  ganador: "Ganador", duracion_min: "Duración (min)"
+};
 ```
 
 <div class="card">
@@ -36,7 +43,8 @@ display(Inputs.table(resumenJugadores, {
   format: {winrate: pct, duracion: (x) => num(x, 1)},
   sort: "winrate",
   reverse: true,
-  rows: 13
+  rows: 13,
+  layout: "auto"
 }));
 ```
 
@@ -47,20 +55,20 @@ display(Inputs.table(resumenJugadores, {
 ## Partidas
 
 ```js
-const buscadas = view(Inputs.search(filas, {placeholder: "Buscar por jugador, rival, evento, color…"}));
+const buscadas = view(Inputs.search(partidas, {placeholder: "Buscar por jugador, evento, color, ganador…"}));
 ```
 
 ```js
-display(botonCSV(buscadas, "partidas.csv"));
+display(botonCSV(buscadas, columnas, "partidas.csv"));
 ```
 
 ```js
 display(Inputs.table(buscadas, {
-  columns: ["fecha", "evento", "ronda", "partida", "jugador", "rival", "color", "color_rival", "resultado", "duracion_min"],
-  header: {fecha: "Fecha", evento: "Evento", ronda: "Ronda", partida: "Partida", jugador: "Jugador", rival: "Rival",
-    color: "Color", color_rival: "Color rival", resultado: "Resultado", duracion_min: "Min"},
+  columns: Object.keys(columnas),
+  header: columnas,
   format: {fecha: fechaCorta},
-  rows: 15
+  rows: 15,
+  layout: "auto"
 }));
 ```
 

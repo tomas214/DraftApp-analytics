@@ -1,15 +1,25 @@
 import {html} from "npm:htl";
 import {csvFormat} from "npm:d3-dsv";
 
-/** Botón que descarga `filas` como CSV (con BOM para que Excel lea bien los acentos). */
-export function botonCSV(filas, nombre = "datos.csv") {
-  const boton = html`<button class="boton">Descargar CSV (${filas.length.toLocaleString("es-AR")} filas)</button>`;
+/** Texto CSV de `filas`; `columnas` = {campo: "Encabezado"} define orden y nombres. */
+export function aCSV(filas, columnas) {
+  const campos = Object.keys(columnas);
+  const datos = filas.map((f) =>
+    Object.fromEntries(campos.map((c) => [columnas[c], f[c] instanceof Date ? f[c].toISOString().slice(0, 10) : f[c]]))
+  );
+  return csvFormat(datos, campos.map((c) => columnas[c]));
+}
+
+/** Botón que descarga `filas` como CSV (UTF-8 con BOM para que Excel lea bien las tildes). */
+export function botonCSV(filas, columnas, nombre = "datos.csv") {
+  const boton = html`<button type="button" class="boton">Descargar CSV (${filas.length.toLocaleString("es-AR")} filas)</button>`;
   boton.onclick = () => {
-    const datos = filas.map((f) => ({...f, fecha: f.fecha instanceof Date ? f.fecha.toISOString().slice(0, 10) : f.fecha}));
-    const url = URL.createObjectURL(new Blob(["﻿" + csvFormat(datos)], {type: "text/csv;charset=utf-8"}));
-    const a = html`<a href=${url} download=${nombre}></a>`;
+    const url = URL.createObjectURL(new Blob(["﻿", aCSV(filas, columnas)], {type: "text/csv;charset=utf-8"}));
+    const a = html`<a href=${url} download=${nombre} hidden></a>`;
+    document.body.append(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   return boton;
 }
