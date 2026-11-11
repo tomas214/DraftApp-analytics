@@ -46,9 +46,9 @@ display(filas.length === 0 ? html`<div class="card vacio">Sin datos para los fil
     ${resize((width) => Plot.plot({
       width, marginLeft: 80,
       x: {label: "Victorias", grid: true},
-      y: {label: null, sort: {y: "-x"}},
+      y: {label: null},
       marks: [
-        Plot.barX(jugadores, {y: "jugador", x: "ganadas", fill: ACENTO, tip: true,
+        Plot.barX(jugadores, {y: "jugador", x: "ganadas", sort: {y: "-x"}, fill: ACENTO, tip: true,
           title: (d) => `${d.jugador}\nVictorias: ${d.ganadas} de ${d.jugadas}\nWinrate: ${pct(d.winrate)}`}),
         Plot.ruleX([0])
       ]
@@ -89,7 +89,7 @@ display(filas.length === 0 ? html`<div class="card vacio">Sin datos para los fil
       width,
       x: {label: "Partidas jugadas", grid: true},
       y: {label: "Winrate", grid: true, tickFormat: "%", domain: [0, 1]},
-      r: {range: [4, 12]},
+      r: {range: [3, 8]},
       marks: [
         Plot.ruleY([0.5], {stroke: "currentColor", strokeOpacity: 0.3, strokeDasharray: "4,3"}),
         Plot.dot(jugadores, {x: "jugadas", y: "winrate", r: "duracion", fill: ACENTO, fillOpacity: 0.75, tip: true,
