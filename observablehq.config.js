@@ -10,10 +10,15 @@ export default {
   // OJO: `style` y `theme` son excluyentes. El tema (claro/oscuro automático + layout "dashboard")
   // se importa dentro de src/style.css.
 
-  // Navegación lateral automática con las páginas de src/ (Resumen, Detalle).
+  // Menú lateral con las páginas del sitio.
   sidebar: true,
+  pages: [
+    {name: "Resumen", path: "/"},
+    {name: "Detalle", path: "/detalle"},
+    {name: "Acerca de los datos", path: "/acerca"}
+  ],
   pager: false,
   toc: false,
   style: "style.css",
-  footer: "DraftApp Analytics · datos sintéticos de ejemplo"
+  footer: "DraftApp Analytics"
 };

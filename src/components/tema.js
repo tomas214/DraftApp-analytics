@@ -20,3 +20,11 @@ export const num = (x, d = 0) =>
   Number.isFinite(x) ? new Intl.NumberFormat("es-AR", {maximumFractionDigits: d}).format(x) : "—";
 export const fechaCorta = (d) =>
   d.toLocaleDateString("es-AR", {day: "2-digit", month: "short", year: "numeric", timeZone: "UTC"});
+
+// Colores de los gráficos
+export const ACENTO2 = "#f28e2b"; // segunda serie / línea de ajuste
+export const COLOR_DRAFT = "#f5a623"; // días en que hubo un draft
+export const PALETA_JUGADORES = [
+  "#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948",
+  "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac", "#1f77b4", "#8cd17d"
+];

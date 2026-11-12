@@ -97,11 +97,19 @@ h1 {
   color: var(--theme-foreground-faint);
 }
 
-/* Grilla de visuales: 2 columnas en pantalla ancha, 1 en chica */
+/* Fila de dos gráficos: 2 columnas iguales (50 % cada una) desde 700 px; una sola columna por debajo */
 .grid-bi {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--gap);
+}
+@media (min-width: 700px) {
+  .grid-bi {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.grid-bi > .card > * {
+  min-width: 0;
 }
 .grid-bi .card {
   margin: 0;
@@ -160,4 +168,94 @@ h1 {
     flex: 0 0 auto !important;
     align-self: flex-start;
   }
+}
+
+/* Gráficos */
+.card.ancho {
+  margin: 0 0 var(--gap);
+}
+.grid-bi {
+  margin-bottom: var(--gap);
+}
+.scroll-x {
+  overflow-x: auto;
+}
+.paneles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
+  gap: var(--gap);
+}
+.paneles > div {
+  min-width: 0;
+}
+.card form {
+  margin-bottom: 0.25rem;
+}
+
+/* Leyenda de media / mediana (gráfico Jugando primero / Robando primero) */
+.leyenda {
+  display: flex;
+  gap: 1rem;
+  margin: 0.25rem 0 0.25rem;
+  font-size: 0.8rem;
+  color: var(--theme-foreground-muted);
+}
+.leyenda span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.simbolo {
+  display: inline-block;
+  width: 0.8rem;
+  height: 0.8rem;
+  border: 1.5px solid #222;
+  box-sizing: border-box;
+}
+.simbolo.media {
+  background: #ffffff;
+  border-radius: 50%;
+}
+.simbolo.mediana {
+  background: #fff3b0;
+  transform: rotate(45deg) scale(0.85);
+}
+
+/* Aviso de datos de prueba y página "Acerca de los datos" */
+.aviso-datos {
+  margin: 0 0 var(--gap);
+  padding: 0.6rem 1rem;
+  border: 1px solid #f5a623;
+  border-left-width: 4px;
+  border-radius: 0.5rem;
+  background: rgba(245, 166, 35, 0.12);
+}
+.card.texto {
+  max-width: 52rem;
+}
+.card.texto h2 {
+  font-size: 1.1rem;
+  margin: 1.25rem 0 0.4rem;
+}
+.card.texto h2:first-child {
+  margin-top: 0;
+}
+.tabla-registro {
+  width: auto;
+  min-width: 22rem;
+  max-width: 100%;
+}
+.tabla-registro td:last-child,
+.tabla-registro th:last-child {
+  text-align: right;
+}
+
+/* Segunda fila: las dos tarjetas miden lo mismo y el gráfico va siempre pegado al fondo, de modo que los ejes x quedan a la misma
+   altura aunque una tarjeta tenga selector y leyenda encima y la otra no. */
+.grid-bi > .card {
+  display: flex;
+  flex-direction: column;
+}
+.grid-bi > .card > :last-child {
+  margin-top: auto;
 }
