@@ -39,7 +39,7 @@ display(avisoDatos(meta));
 
 - Los datos están **seudonimizados, no anonimizados**. Cada jugador aparece como «Jugador n», pero en un grupo chico quien participó puede reconocer a otras personas por las fechas, los colores y los resultados.
 - La **autoevaluación del mazo es el dato más sensible** que se publica: es un juicio personal de cada jugador sobre sí mismo, ligado a un evento.
-- Los **números de jugador pueden cambiar entre actualizaciones** (y también las letras de los cubos): no sirven para seguir a una persona de una versión a otra.
+- Los **números de jugador pueden cambiar entre actualizaciones**: no sirven para seguir a una persona de una versión a otra. Las **letras de los cubos se mantienen estables**; solo si un cubo publicado deja de publicarse su letra desaparece y las siguientes pueden correrse (los cubos nuevos se agregan al final).
 
 ## Qué se excluye
 
