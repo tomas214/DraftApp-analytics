@@ -139,8 +139,16 @@ h1 {
   border: 1px solid var(--theme-foreground-faint);
   align-self: flex-end;
 }
-.boton:hover {
+.boton:hover:not(:disabled) {
   filter: brightness(1.1);
+}
+/* Botón deshabilitado (p. ej. descarga de CSV): atenuado, sin cursor de acción y sin respuesta al pasar el mouse */
+.boton:disabled {
+  background: var(--theme-background-alt);
+  color: var(--theme-foreground-muted);
+  border: 1px solid var(--theme-foreground-faintest);
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 @media (max-width: 640px) {
