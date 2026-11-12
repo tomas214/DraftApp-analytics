@@ -1,10 +1,15 @@
 // Pruebas del loader con un CLIENTE FALSO (sin base real). Correr con: npm test
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import net from "node:net";
+import {TLSSocket} from "node:tls";
+import {X509Certificate} from "node:crypto";
 import {spawnSync} from "node:child_process";
 import {fileURLToPath} from "node:url";
 import path from "node:path";
-import {extraer, validarDatos, conectar, sanitizar, COLUMNAS_ESPERADAS, MAX_ANTIGUEDAD_HORAS, ErrorDatos} from "../src/data/extraccion.js";
+import {extraer, validarDatos, conectar, leerCertificado, sanitizar, COLUMNAS_ESPERADAS, MAX_ANTIGUEDAD_HORAS, ErrorDatos} from "../src/data/extraccion.js";
 import {obtenerDatos} from "../src/data/fuente.js";
 import {generarSintetico} from "../src/data/sintetico.js";
 
@@ -238,7 +243,7 @@ test("los errores nunca incluyen host, usuario ni contraseña", async () => {
   assert.ok(!t.includes("a%20b%2Fc"));
 });
 
-test("conectar(): SSL activado, timeout corto y tipos (bigint→Number, date→texto)", async () => {
+test("conectar(): timeout corto y tipos (bigint→Number, date→texto)", async () => {
   let opciones;
   class Espia {
     constructor(o) {
@@ -252,10 +257,128 @@ test("conectar(): SSL activado, timeout corto y tipos (bigint→Number, date→t
     async end() {}
   }
   await conectar({host: "h", user: "u", password: "p", port: 5432, database: "postgres"}, Espia);
-  assert.ok(opciones.ssl && opciones.ssl.rejectUnauthorized === false, "SSL activado (sin verificar certificado: pendiente documentado)");
   assert.ok(opciones.connectionTimeoutMillis > 0 && opciones.connectionTimeoutMillis <= 15000);
   assert.equal(opciones.types.getTypeParser(20)("281474976710655"), 281474976710655);
   assert.equal(opciones.types.getTypeParser(1082)("2026-03-07"), "2026-03-07");
+});
+
+// ---- 6b. SSL verificado --------------------------------------------------------------------------------------------------
+const CA_REAL = fs.readFileSync(path.join(RAIZ, "certs", "prod-ca-2021.crt"), "utf8");
+const CRED_DB = {host: "h", user: "u", password: "p", port: 5432, database: "postgres"};
+
+test("conectar(): las opciones ssl llegan con el certificado raíz del repo y rejectUnauthorized true", async () => {
+  let opciones;
+  class Espia {
+    constructor(o) {
+      opciones = o;
+    }
+    on() {}
+    async connect() {}
+    async query() {
+      return {rows: []};
+    }
+    async end() {}
+  }
+  await conectar(CRED_DB, Espia);
+  assert.equal(opciones.ssl.rejectUnauthorized, true);
+  assert.equal(opciones.ssl.ca, CA_REAL, "ca = contenido de certs/prod-ca-2021.crt");
+  assert.deepEqual(Object.keys(opciones.ssl).sort(), ["ca", "rejectUnauthorized"], "sin otras opciones (p. ej. checkServerIdentity): verificación de host por defecto");
+});
+
+test("certificado ausente, ilegible o inválido: la conexión falla y NUNCA se crea un cliente sin verificar", async () => {
+  let creados = 0;
+  class Espia {
+    constructor() {
+      creados++;
+    }
+    on() {}
+    async connect() {}
+  }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ca-"));
+  const conClave = path.join(dir, "con-clave.crt");
+  fs.writeFileSync(conClave, `${CA_REAL}\n-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n`);
+  const vacio = path.join(dir, "vacio.crt");
+  fs.writeFileSync(vacio, "");
+  for (const ruta of [path.join(dir, "no-existe.crt"), conClave, vacio, dir]) {
+    await rechaza(conectar(CRED_DB, Espia, {leerCa: () => leerCertificado(ruta)}), /certificado/);
+  }
+  assert.equal(creados, 0);
+});
+
+test("certificado ausente: la extracción FALLA (no cae al sintético ni a una conexión sin verificar)", async () => {
+  const sinCa = (credenciales) => conectar(credenciales, class {}, {leerCa: () => leerCertificado(path.join(RAIZ, "certs", "no-existe.crt"))});
+  await assert.rejects(obtenerDatos(CRED, {conectarFn: sinCa, ahora: AHORA}), (e) => {
+    assert.ok(e instanceof ErrorDatos && /certificado raíz/.test(e.message));
+    for (const s of Object.values(CRED)) assert.ok(!e.message.includes(s));
+    return true;
+  });
+});
+
+test("leerCertificado(): el archivo del repo es solo un certificado público", () => {
+  const t = leerCertificado();
+  assert.equal((t.match(/-----BEGIN CERTIFICATE-----/g) ?? []).length, 1);
+  assert.ok(!/PRIVATE KEY/.test(t));
+  assert.equal(new X509Certificate(t).ca, true);
+});
+
+test("un error de TLS se reduce a su código, sin host ni usuario", async () => {
+  class FallaTls {
+    constructor() {}
+    on() {}
+    async connect() {
+      const e = new Error(`Hostname/IP does not match certificate's altnames: Host: ${CRED.ANALYTICS_DB_HOST}. usuario ${CRED.ANALYTICS_DB_USER}`);
+      e.code = "ERR_TLS_CERT_ALTNAME_INVALID";
+      throw e;
+    }
+  }
+  await assert.rejects(
+    conectar({host: CRED.ANALYTICS_DB_HOST, user: CRED.ANALYTICS_DB_USER, password: CRED.ANALYTICS_DB_PASSWORD, port: 5432, database: "postgres"}, FallaTls),
+    (e) => {
+      for (const s of Object.values(CRED)) assert.ok(!e.message.includes(s));
+      return /ERR_TLS_CERT_ALTNAME_INVALID/.test(e.message);
+    }
+  );
+});
+
+test("ninguna vía de escape: el código no contiene rejectUnauthorized en false ni variables/opciones que desactiven la verificación", () => {
+  const prohibidos = [/rejectUnauthorized\s*:\s*false/, /NODE_TLS_REJECT_UNAUTHORIZED/, /sslmode\s*=\s*(disable|allow|prefer|require|no-verify)/i, /PGSSLMODE\s*[:=]\s*["']?(disable|allow|prefer|require)/, /ANALYTICS_DB_SSL/, /ANALYTICS_DB_CA/];
+  const revisar = (dir) => {
+    for (const e of fs.readdirSync(dir, {withFileTypes: true})) {
+      const ruta = path.join(dir, e.name);
+      if (e.isDirectory()) revisar(ruta);
+      else if (/\.(js|mjs|yml|yaml)$/.test(e.name)) {
+        const t = fs.readFileSync(ruta, "utf8");
+        for (const re of prohibidos) assert.ok(!re.test(t), `${path.relative(RAIZ, ruta)} contiene ${re}`);
+      }
+    }
+  };
+  for (const d of ["src/data", "scripts", ".github"]) revisar(path.join(RAIZ, d));
+});
+
+test("TLS real: un servidor cuyo certificado NO está firmado por la raíz de Supabase es rechazado (verificación activa)", {skip: spawnSync("openssl", ["version"]).status !== 0 && "openssl no disponible"}, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tls-"));
+  const gen = spawnSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", path.join(dir, "k.pem"), "-out", path.join(dir, "c.pem"), "-days", "1", "-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:127.0.0.1"], {encoding: "utf8"});
+  assert.equal(gen.status, 0);
+  // Servidor mínimo con el saludo SSLRequest de PostgreSQL: responde "S" y pasa a TLS con un certificado AUTOFIRMADO.
+  const servidor = net.createServer((socket) => {
+    socket.once("data", () => {
+      socket.write("S");
+      const tls = new TLSSocket(socket, {isServer: true, key: fs.readFileSync(path.join(dir, "k.pem")), cert: fs.readFileSync(path.join(dir, "c.pem"))});
+      tls.on("error", () => {});
+      tls.on("data", () => {});
+    });
+    socket.on("error", () => {});
+  });
+  await new Promise((ok) => servidor.listen(0, "127.0.0.1", ok));
+  try {
+    const puerto = servidor.address().port;
+    await assert.rejects(
+      conectar({host: "127.0.0.1", user: "u", password: "p", port: puerto, database: "postgres"}),
+      (e) => e instanceof ErrorDatos && /\(SELF_SIGNED_CERT_IN_CHAIN|DEPTH_ZERO_SELF_SIGNED_CERT|UNABLE_TO_VERIFY_LEAF_SIGNATURE/.test(e.message) && !e.message.includes("127.0.0.1")
+    );
+  } finally {
+    servidor.close();
+  }
 });
 
 // ---- 7. el loader como proceso --------------------------------------------------------------------------------------------

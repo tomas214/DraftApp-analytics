@@ -86,13 +86,23 @@ Para probar la extracción real en local hay que exportar las tres variables `AN
 Los ids de jugador y de cubo son puestos 1…n **de cada publicación**: pueden cambiar entre refrescos. Nada del sitio debe guardarlos ni usarlos para seguir a una
 persona entre versiones.
 
-## Pendiente: verificar el certificado SSL
+## Conexión segura: el certificado SSL se verifica
 
-La conexión usa SSL, pero **hoy no verifica el certificado del servidor** (`rejectUnauthorized: false`): el session pooler de Supabase usa un certificado cuya
-autoridad no está en el almacén público de certificados del runner. El tráfico va cifrado, pero no queda protegido contra un intermediario que suplante al servidor.
+La conexión usa SSL **verificado**: el loader valida la cadena del servidor contra el **certificado raíz de Supabase** guardado en el repo
+(`certs/prod-ca-2021.crt`) y comprueba que el nombre del host coincida con el certificado (`rejectUnauthorized: true`, comprobación de nombre por defecto).
+No hay ninguna variable de entorno, opción ni ruta de escape para volver a conectar sin verificar, y una prueba automática lo vigila.
 
-Para cerrarlo: descargar el **certificado raíz de Supabase** (es público), guardarlo en el repo (por ejemplo `certs/supabase-root.crt`), pasarlo al cliente como
-`ssl: { ca: <contenido>, rejectUnauthorized: true }` y volver a correr `probar-conexion.yml`. Queda como **tarea pendiente**.
+- **Qué es el archivo.** Es el certificado raíz **público** de Supabase (no es un secreto; no hay claves privadas en el repo). Sale del panel de Supabase:
+  **Database Settings → SSL Configuration → Download certificate**. Una prueba confirma que `certs/` solo tiene un bloque `BEGIN CERTIFICATE` y ninguna clave privada.
+- **Si el archivo falta, no se puede leer o no es un certificado, el loader FALLA**: nunca cae a una conexión sin verificar.
+- Los errores de TLS se reducen a su código (por ejemplo `SELF_SIGNED_CERT_IN_CHAIN`, `CERT_HAS_EXPIRED` o `ERR_TLS_CERT_ALTNAME_INVALID`), sin host ni usuario.
+- `probar-conexion.yml` hace checkout del repo y usa `PGSSLMODE=verify-full` con `PGSSLROOTCERT` apuntando a ese mismo archivo, de modo que la verificación se prueba de punta a punta desde GitHub.
+- El certificado actual vence en abril de 2031.
+
+### Si Supabase rota el certificado
+- **Síntoma:** el build falla (el loader o `probar-conexion.yml`) con un error de certificado: `SELF_SIGNED_CERT_IN_CHAIN`, `UNABLE_TO_VERIFY_LEAF_SIGNATURE`, `CERT_HAS_EXPIRED` o `ERR_TLS_CERT_ALTNAME_INVALID`. Como el build es falla-segura, queda publicada la versión anterior.
+- **Solución:** descargar el certificado nuevo desde **Database Settings → SSL Configuration**, reemplazar `certs/prod-ca-2021.crt` (o agregar el nuevo y ajustar la ruta en `src/data/extraccion.js`),
+  correr `npm test` y mergear. Después volver a correr `probar-conexion.yml` para confirmar la verificación de punta a punta.
 
 ## Qué no hace
 No usa `service_role`, no escribe en la base, no guarda datos en el repo (el JSON se genera en cada build y solo se publica como parte del sitio) y no expone credenciales en logs ni en `dist`.
