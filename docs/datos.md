@@ -83,8 +83,8 @@ Para probar la extracción real en local hay que exportar las tres variables `AN
 
 ## Los jugadores cambian de número
 
-Los ids de jugador y de cubo son puestos 1…n **de cada publicación**: pueden cambiar entre refrescos. Nada del sitio debe guardarlos ni usarlos para seguir a una
-persona entre versiones.
+Los ids de jugador son puestos 1…n **de cada publicación**: pueden cambiar entre refrescos (se re-aleatorizan en cada actualización). Nada del sitio debe guardarlos ni usarlos para seguir a una
+persona entre versiones. Las letras de los cubos, en cambio, son estables entre refrescos: solo si un cubo publicado deja de publicarse su letra desaparece y las siguientes pueden correrse (los cubos nuevos se agregan al final).
 
 ## Conexión segura: el certificado SSL se verifica
 
