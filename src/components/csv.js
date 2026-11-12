@@ -10,9 +10,12 @@ export function aCSV(filas, columnas) {
   return csvFormat(datos, campos.map((c) => columnas[c]));
 }
 
-/** Botón que descarga `filas` como CSV (UTF-8 con BOM para que Excel lea bien las tildes). */
+/** Interruptor ÚNICO de la descarga de CSV: con `false` el botón se ve y se comporta como deshabilitado. Para habilitarla, cambiar solo esta línea. */
+export const CSV_HABILITADO = false;
+
+/** Botón que descarga `filas` como CSV (UTF-8 con BOM para que Excel lea bien las tildes). Deshabilitado si CSV_HABILITADO es false. */
 export function botonCSV(filas, columnas, nombre = "datos.csv") {
-  const boton = html`<button type="button" class="boton">Descargar CSV (${filas.length.toLocaleString("es-AR")} filas)</button>`;
+  const boton = html`<button type="button" class="boton" disabled=${!CSV_HABILITADO}>Descargar CSV (${filas.length.toLocaleString("es-AR")} filas)</button>`;
   boton.onclick = () => {
     const url = URL.createObjectURL(new Blob(["﻿", aCSV(filas, columnas)], {type: "text/csv;charset=utf-8"}));
     const a = html`<a href=${url} download=${nombre} hidden></a>`;

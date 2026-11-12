@@ -6,12 +6,12 @@ title: Resumen
 
 ```js
 import * as Inputs from "npm:@observablehq/inputs";
-import {prepararDatos, filtrarFechas, resumen, kde, porCombinacion, serieEventos, boxplotsPorEvento, empezoPorJugador, resumenCategoria, valoracionVsWinrate, porCubo} from "./components/datos.js";
+import {prepararDatos, filtrarFechas, resumen, kde, porCombinacion, serieEventos, boxplotsPorEvento, boxplotsPorCubo, empezoPorJugador, resumenCategoria, valoracionVsWinrate, porCubo} from "./components/datos.js";
 import {crearFiltros} from "./components/filtros.js";
 import {kpis} from "./components/kpi.js";
 import {avisoDatos} from "./components/aviso.js";
 import {num} from "./components/tema.js";
-import {MIN_PARTIDAS, JUGANDO_PRIMERO, ROBANDO_PRIMERO, graficoDensidad, graficoCombinaciones, graficoSerie, graficoSerieBoxplot, graficoEmpezo, graficoValoracion, graficoCubo} from "./components/graficos.js";
+import {MIN_PARTIDAS, JUGANDO_PRIMERO, ROBANDO_PRIMERO, graficoDensidad, graficoCombinaciones, graficoSerie, graficoSerieBoxplot, graficoEmpezo, graficoValoracion, graficoCubo, graficoCuboBoxplot} from "./components/graficos.js";
 
 const datos = prepararDatos(await FileAttachment("data/draftapp.json").json());
 ```
@@ -97,9 +97,10 @@ display(html`<div class="scroll-x">${resize((width) => graficoCombinaciones(comb
 
 ```js
 const cubo = porCubo(f);
+const cajasCubo = boxplotsPorCubo(f);
 display(html`<div class="paneles">
   <div>${resize((width) => graficoCubo(cubo.draft, "Duración del draft (min)", width))}</div>
-  <div>${resize((width) => graficoCubo(cubo.partida, "Duración de las partidas (min)", width))}</div>
+  <div>${resize((width) => graficoCuboBoxplot(cajasCubo, width))}</div>
 </div>`);
 ```
 

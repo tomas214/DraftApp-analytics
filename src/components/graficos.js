@@ -116,17 +116,46 @@ export function graficoSerie(filas, metrica, width) {
   });
 }
 
+// Boxplots: estilo y marcas COMPARTIDOS por todos los boxplots del sitio (duración de partida por día de draft y por cubo).
+const ALTO_BOXPLOT = 380;
+const CAJA = {color: COLOR_DRAFT, relleno: 0.35, grosor: 1.5, grosorMediana: 2.5, radioAtipico: 2.5};
+const textoCaja = (d, titulo) =>
+  `${titulo}
+Mediana: ${num(d.mediana, 1)}
+Q1 – Q3: ${num(d.q1, 1)} – ${num(d.q3, 1)}
+Bigotes: ${num(d.bigoteMin, 1)} – ${num(d.bigoteMax, 1)}
+Partidas: ${d.n}`;
+
+/**
+ * Marcas de un boxplot: bigotes con tapas, caja entre cuartiles, mediana y atípicos como puntos.
+ * La posición en x la dan las funciones: x (centro), desde/hasta (extremos de la caja) y capDesde/capHasta (extremos de las tapas).
+ */
+function marcasBoxplot(cajas, atipicos, {x, desde, hasta, capDesde, capHasta, titulo}) {
+  return [
+    Plot.ruleX(cajas, {x, y1: "bigoteMin", y2: "q1", stroke: CAJA.color, strokeWidth: CAJA.grosor}),
+    Plot.ruleX(cajas, {x, y1: "q3", y2: "bigoteMax", stroke: CAJA.color, strokeWidth: CAJA.grosor}),
+    Plot.ruleY(cajas, {x1: capDesde, x2: capHasta, y: "bigoteMin", stroke: CAJA.color, strokeWidth: CAJA.grosor}),
+    Plot.ruleY(cajas, {x1: capDesde, x2: capHasta, y: "bigoteMax", stroke: CAJA.color, strokeWidth: CAJA.grosor}),
+    Plot.rect(cajas, {
+      x1: desde, x2: hasta, y1: "q1", y2: "q3", fill: CAJA.color, fillOpacity: CAJA.relleno, stroke: CAJA.color, strokeWidth: CAJA.grosor, tip: true,
+      title: (d) => textoCaja(d, titulo(d))
+    }),
+    Plot.ruleY(cajas, {x1: desde, x2: hasta, y: "mediana", stroke: "currentColor", strokeWidth: CAJA.grosorMediana}),
+    Plot.dot(atipicos, {
+      x, y: "valor", r: CAJA.radioAtipico, fill: "none", stroke: CAJA.color, strokeWidth: 1.2, tip: true,
+      title: (d) => `${titulo(d)}
+Atípico: ${num(d.valor, 0)} min`
+    })
+  ];
+}
+
 /** 3 (opción "Duración de partida"). Un boxplot por día de draft; cajas de datos.js (boxplotsPorEvento). */
 export function graficoSerieBoxplot({cajas, atipicos}, width) {
   const mitad = 1.6 * DIA; // medio ancho de la caja, en días
   const fechas = cajas.map((d) => +d.fecha);
   const dominio = fechas.length ? [new Date(Math.min(...fechas) - 7 * DIA), new Date(Math.max(...fechas) + 7 * DIA)] : undefined;
-  const x1 = (d) => new Date(+d.fecha - mitad);
-  const x2 = (d) => new Date(+d.fecha + mitad);
-  const cap1 = (d) => new Date(+d.fecha - mitad / 2);
-  const cap2 = (d) => new Date(+d.fecha + mitad / 2);
   return Plot.plot({
-    width, height: 380,
+    width, height: ALTO_BOXPLOT,
     x: {
       type: "utc", label: "Fecha", domain: dominio, ticks: "month", grid: true,
       tickFormat: (d) => d.toLocaleDateString("es-AR", {month: "short", year: "2-digit", timeZone: "UTC"})
@@ -134,18 +163,33 @@ export function graficoSerieBoxplot({cajas, atipicos}, width) {
     y: {label: "Duración de partida (min)", grid: true, nice: true},
     marks: [
       Plot.ruleX(cajas, {x: "fecha", stroke: COLOR_DRAFT, strokeOpacity: 0.3}), // día con draft
-      Plot.ruleX(cajas, {x: "fecha", y1: "bigoteMin", y2: "q1", stroke: COLOR_DRAFT, strokeWidth: 1.5}),
-      Plot.ruleX(cajas, {x: "fecha", y1: "q3", y2: "bigoteMax", stroke: COLOR_DRAFT, strokeWidth: 1.5}),
-      Plot.ruleY(cajas, {x1: cap1, x2: cap2, y: "bigoteMin", stroke: COLOR_DRAFT, strokeWidth: 1.5}),
-      Plot.ruleY(cajas, {x1: cap1, x2: cap2, y: "bigoteMax", stroke: COLOR_DRAFT, strokeWidth: 1.5}),
-      Plot.rect(cajas, {
-        x1, x2, y1: "q1", y2: "q3", fill: COLOR_DRAFT, fillOpacity: 0.35, stroke: COLOR_DRAFT, strokeWidth: 1.5, tip: true,
-        title: (d) => `${d.evento} · ${fechaCorta(d.fecha)}\nMediana: ${num(d.mediana, 1)}\nQ1 – Q3: ${num(d.q1, 1)} – ${num(d.q3, 1)}\nBigotes: ${num(d.bigoteMin, 1)} – ${num(d.bigoteMax, 1)}\nPartidas: ${d.n}`
-      }),
-      Plot.ruleY(cajas, {x1, x2, y: "mediana", stroke: "currentColor", strokeWidth: 2.5}),
-      Plot.dot(atipicos, {x: "fecha", y: "valor", r: 2.5, fill: "none", stroke: COLOR_DRAFT, strokeWidth: 1.2, tip: true,
-        title: (d) => `${d.evento} · ${fechaCorta(d.fecha)}\nAtípico: ${num(d.valor, 0)} min`})
+      ...marcasBoxplot(cajas, atipicos, {
+        x: "fecha",
+        desde: (d) => new Date(+d.fecha - mitad), hasta: (d) => new Date(+d.fecha + mitad),
+        capDesde: (d) => new Date(+d.fecha - mitad / 2), capHasta: (d) => new Date(+d.fecha + mitad / 2),
+        titulo: (d) => `${d.evento} · ${fechaCorta(d.fecha)}`
+      })
     ]
+  });
+}
+
+/**
+ * 6b. Un boxplot por cubo con la duración de las partidas (cajas de datos.js: boxplotsPorCubo). Mismo estilo y marcas que el boxplot
+ * por día de draft; el eje x es numérico (posición de cada cubo) con el nombre del cubo como marca, y sin título.
+ */
+export function graficoCuboBoxplot({cajas, atipicos}, width) {
+  const n = cajas.length;
+  const mitad = 0.3; // medio ancho de la caja, en posiciones de cubo
+  return Plot.plot({
+    width, height: ALTO_BOXPLOT,
+    x: {label: null, domain: [-0.6, n - 0.4], ticks: cajas.map((d) => d.indice), tickFormat: (i) => cajas[i]?.cubo ?? ""},
+    y: {label: "Duración de las partidas (min)", grid: true, nice: true},
+    marks: marcasBoxplot(cajas, atipicos, {
+      x: "indice",
+      desde: (d) => d.indice - mitad, hasta: (d) => d.indice + mitad,
+      capDesde: (d) => d.indice - mitad / 2, capHasta: (d) => d.indice + mitad / 2,
+      titulo: (d) => d.cubo
+    })
   });
 }
 
@@ -208,7 +252,7 @@ export function graficoValoracion(filas, width) {
 /** 6. Barras por cubo con promedio y desvío estándar (barra de error). */
 export function graficoCubo(filas, etiquetaY, width) {
   return Plot.plot({
-    width, marginBottom: 34, // sin título de eje: solo caben los nombres de los cubos
+    width, height: ALTO_BOXPLOT, // sin título de eje; mismo alto que el boxplot de al lado
     x: {label: null, domain: filas.map((d) => d.cubo)},
     y: {label: etiquetaY, grid: true, zero: true},
     marks: [

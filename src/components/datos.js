@@ -176,16 +176,34 @@ export function serieEventos({eventos, partidas}) {
  */
 export function boxplotsPorEvento({eventos, partidas}) {
   const g = group(partidas, (p) => p.evento_id);
+  return cajasPorGrupo(eventos.map((e) => ({clave: {evento: e.nombre, fecha: e.fecha}, valores: (g.get(e.id) ?? []).map((p) => p.duracion_min)})));
+}
+
+/**
+ * Boxplot de la duración de partida por CUBO (mismo cálculo que boxplotsPorEvento). Mismo orden que el gráfico de duración del draft:
+ * cubos por nombre y solo los que tienen partidas en el período filtrado. `indice` (0…n-1) es la posición en el eje x.
+ */
+export function boxplotsPorCubo({eventos, partidas}) {
+  const g = group(partidas, (p) => p.cubo);
+  const cubos = [...new Set(eventos.map((e) => e.cubo))].sort().filter((c) => g.get(c));
+  return cajasPorGrupo(cubos.map((c, indice) => ({clave: {cubo: c, indice}, valores: g.get(c).map((p) => p.duracion_min)})));
+}
+
+/**
+ * Cálculo común de los boxplots del sitio: mediana, cuartiles (método lineal, tipo 7), bigotes hasta el último dato dentro de 1,5·RIC y
+ * atípicos aparte. Un grupo sin datos no genera caja; con un solo dato la caja queda de alto cero (q1 = mediana = q3).
+ */
+function cajasPorGrupo(grupos) {
   const cajas = [];
   const atipicos = [];
-  for (const e of eventos) {
-    const v = (g.get(e.id) ?? []).map((p) => p.duracion_min).sort((a, b) => a - b);
+  for (const {clave, valores} of grupos) {
+    const v = [...valores].sort((a, b) => a - b);
     if (!v.length) continue;
     const q1 = quantile(v, 0.25), mediana = quantile(v, 0.5), q3 = quantile(v, 0.75);
     const ric = q3 - q1;
     const dentro = v.filter((x) => x >= q1 - 1.5 * ric && x <= q3 + 1.5 * ric);
-    cajas.push({evento: e.nombre, fecha: e.fecha, n: v.length, q1, mediana, q3, bigoteMin: dentro[0], bigoteMax: dentro.at(-1)});
-    for (const x of v) if (x < q1 - 1.5 * ric || x > q3 + 1.5 * ric) atipicos.push({evento: e.nombre, fecha: e.fecha, valor: x});
+    cajas.push({...clave, n: v.length, q1, mediana, q3, bigoteMin: dentro[0], bigoteMax: dentro.at(-1)});
+    for (const x of v) if (x < q1 - 1.5 * ric || x > q3 + 1.5 * ric) atipicos.push({...clave, valor: x});
   }
   return {cajas, atipicos};
 }
@@ -222,15 +240,13 @@ export function valoracionVsWinrate({mazos, filasPartida}) {
     .map(({m, r}) => ({jugador: m.jugador, evento: m.evento, autoevaluacion: m.autoevaluacion, winrate: r.wr, n: r.n}));
 }
 
-/** Por cubo: duración del draft (entre eventos) y de las partidas, con promedio y desvío. */
-export function porCubo({eventos, partidas}) {
+/** Por cubo: duración del draft (entre eventos) con promedio y desvío. (La duración de las partidas por cubo es un boxplot: boxplotsPorCubo.) */
+export function porCubo({eventos}) {
   const draft = group(eventos, (e) => e.cubo);
-  const part = group(partidas, (p) => p.cubo);
   const cubos = [...new Set(eventos.map((e) => e.cubo))].sort();
   const fila = (cubo, xs) => ({cubo, media: mean(xs), desvio: desvioPoblacional(xs), n: xs.length});
   return {
-    draft: cubos.filter((c) => draft.get(c)).map((c) => fila(c, draft.get(c).map((e) => e.duracion_draft_min))),
-    partida: cubos.filter((c) => part.get(c)).map((c) => fila(c, part.get(c).map((p) => p.duracion_min)))
+    draft: cubos.filter((c) => draft.get(c)).map((c) => fila(c, draft.get(c).map((e) => e.duracion_draft_min)))
   };
 }
 
