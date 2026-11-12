@@ -4,15 +4,20 @@
   "private": true,
   "type": "module",
   "description": "Sitio estático de analítica de DraftApp (Observable Framework)",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "observable preview",
     "build": "observable build",
     "clean": "rimraf dist src/.observablehq/cache",
+    "test": "node --test \"test/*.test.mjs\"",
+    "check": "npm test && npm run build",
     "observable": "observable"
   },
   "dependencies": {
-    "@observablehq/framework": "^1.13.4"
+    "@observablehq/framework": "^1.13.4",
+    "pg": "8.23.1"
   },
   "devDependencies": {
     "rimraf": "^6.0.1"

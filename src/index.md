@@ -4,16 +4,20 @@ title: Resumen
 
 # Resumen
 
-<p class="subtitulo">Los filtros de abajo actualizan todos los indicadores y gráficos de esta página. Datos sintéticos de ejemplo.</p>
-
 ```js
-import * as Plot from "npm:@observablehq/plot";
-import {prepararDatos, filtrar, resumen, porJugador, porEvento, porJugadorColor} from "./components/datos.js";
+import * as Inputs from "npm:@observablehq/inputs";
+import {prepararDatos, filtrarFechas, resumen, kde, porCombinacion, serieEventos, boxplotsPorEvento, empezoPorJugador, resumenCategoria, valoracionVsWinrate, porCubo} from "./components/datos.js";
 import {crearFiltros} from "./components/filtros.js";
 import {kpis} from "./components/kpi.js";
-import {ACENTO, escalaColores, pct, num, fechaCorta} from "./components/tema.js";
+import {avisoDatos} from "./components/aviso.js";
+import {num} from "./components/tema.js";
+import {MIN_PARTIDAS, JUGANDO_PRIMERO, ROBANDO_PRIMERO, graficoDensidad, graficoCombinaciones, graficoSerie, graficoSerieBoxplot, graficoEmpezo, graficoValoracion, graficoCubo} from "./components/graficos.js";
 
 const datos = prepararDatos(await FileAttachment("data/draftapp.json").json());
+```
+
+```js
+display(avisoDatos(datos.meta));
 ```
 
 ```js
@@ -21,81 +25,82 @@ const filtros = view(crearFiltros(datos));
 ```
 
 ```js
-const filas = filtrar(datos.filas, filtros);
-const r = resumen(filas);
-const jugadores = porJugador(filas);
-const eventos = porEvento(filas);
-const jugadorColor = porJugadorColor(filas);
+const f = filtrarFechas(datos, filtros);
+const r = resumen(f);
 ```
 
 ```js
 display(kpis([
-  {titulo: "Partidas jugadas", valor: num(r.partidas), nota: `${num(r.eventos)} eventos`},
-  {titulo: "Victorias", valor: num(r.ganadas), nota: "de los jugadores filtrados"},
-  {titulo: "Winrate", valor: pct(r.winrate), nota: "con todos los jugadores es 50 % por construcción"},
-  {titulo: "Duración media", valor: `${num(r.duracion, 1)} min`, nota: "por partida"},
-  {titulo: "Jugadores activos", valor: num(r.jugadores), nota: `de ${datos.jugadores.length}`}
+  {titulo: "Partidas jugadas", valor: num(r.partidas)},
+  {titulo: "Eventos", valor: num(r.eventos)},
+  {titulo: "Duración media", valor: `${num(r.duracion, 1)} min`}
 ]));
 ```
 
+<div class="card ancho">
+
 ```js
-display(filas.length === 0 ? html`<div class="card vacio">Sin datos para los filtros elegidos.</div>` : html`<div class="grid-bi">
-  <div class="card">
-    <h2>Victorias por jugador</h2>
-    <h3>Barras · placeholder</h3>
-    ${resize((width) => Plot.plot({
-      width, marginLeft: 80,
-      x: {label: "Victorias", grid: true},
-      y: {label: null},
-      marks: [
-        Plot.barX(jugadores, {y: "jugador", x: "ganadas", sort: {y: "-x"}, fill: ACENTO, tip: true,
-          title: (d) => `${d.jugador}\nVictorias: ${d.ganadas} de ${d.jugadas}\nWinrate: ${pct(d.winrate)}`}),
-        Plot.ruleX([0])
-      ]
-    }))}
-  </div>
-  <div class="card">
-    <h2>Duración media por evento</h2>
-    <h3>Línea en el tiempo · placeholder</h3>
-    ${resize((width) => Plot.plot({
-      width,
-      x: {label: null, type: "utc"},
-      y: {label: "Minutos", grid: true, nice: true},
-      marks: [
-        Plot.lineY(eventos, {x: "fecha", y: "duracion", stroke: ACENTO, strokeWidth: 2, curve: "monotone-x"}),
-        Plot.dot(eventos, {x: "fecha", y: "duracion", fill: ACENTO, r: 4, tip: true,
-          title: (d) => `${d.evento} · ${fechaCorta(d.fecha)}\nDuración media: ${num(d.duracion, 1)} min\nPartidas (jugador): ${d.jugadas}`})
-      ]
-    }))}
-  </div>
-  <div class="card">
-    <h2>Winrate por jugador y color</h2>
-    <h3>Mapa de calor · placeholder</h3>
-    ${resize((width) => Plot.plot({
-      width, marginLeft: 80, padding: 0.05,
-      x: {label: null, domain: escalaColores.domain},
-      y: {label: null, domain: datos.jugadores},
-      color: {type: "diverging", pivot: 0.5, scheme: "RdBu", domain: [0, 1], label: "Winrate", legend: true, tickFormat: "%"},
-      marks: [
-        Plot.cell(jugadorColor, {x: "color", y: "jugador", fill: "winrate", tip: true,
-          title: (d) => `${d.jugador} con ${d.color}\nWinrate: ${pct(d.winrate)} (${d.ganadas}/${d.jugadas})`})
-      ]
-    }))}
-  </div>
-  <div class="card">
-    <h2>Volumen vs. winrate</h2>
-    <h3>Dispersión · placeholder</h3>
-    ${resize((width) => Plot.plot({
-      width,
-      x: {label: "Partidas jugadas", grid: true},
-      y: {label: "Winrate", grid: true, tickFormat: "%", domain: [0, 1]},
-      r: {range: [3, 8]},
-      marks: [
-        Plot.ruleY([0.5], {stroke: "currentColor", strokeOpacity: 0.3, strokeDasharray: "4,3"}),
-        Plot.dot(jugadores, {x: "jugadas", y: "winrate", r: "duracion", fill: ACENTO, fillOpacity: 0.75, tip: true,
-          title: (d) => `${d.jugador}\nPartidas: ${d.jugadas}\nWinrate: ${pct(d.winrate)}\nDuración media: ${num(d.duracion, 1)} min`})
-      ]
-    }))}
-  </div>
+const metricaSerie = view(Inputs.radio(new Map([["Inscriptos", "inscriptos"], ["Duración del draft", "draft"], ["Duración de partida", "partida"]]), {value: "inscriptos"}));
+```
+
+```js
+display(resize((width) => metricaSerie === "partida" ? graficoSerieBoxplot(boxplotsPorEvento(f), width) : graficoSerie(serieEventos(f), metricaSerie, width)));
+```
+
+</div>
+
+<div class="grid-bi">
+<div class="card">
+
+```js
+display(resize((width) => graficoDensidad(kde(f.partidas.map((p) => p.duracion_min)), width)));
+```
+
+</div>
+<div class="card">
+
+```js
+const colorear = view(Inputs.radio(["Un solo color", "Un color por jugador"], {value: "Un solo color"}));
+```
+
+```js
+const puntosEmpezo = empezoPorJugador(f.filasPartida, MIN_PARTIDAS);
+const resumenesEmpezo = [JUGANDO_PRIMERO, ROBANDO_PRIMERO].map((c) => resumenCategoria(puntosEmpezo, c)).filter(Boolean);
+display(resize((width) => graficoEmpezo(puntosEmpezo, resumenesEmpezo, colorear === "Un color por jugador", datos.jugadores, width)));
+```
+
+</div>
+</div>
+
+<div class="card ancho">
+
+```js
+display(resize((width) => graficoValoracion(valoracionVsWinrate(f), width)));
+```
+
+</div>
+
+<div class="card ancho">
+
+```js
+const modoCombos = view(Inputs.radio(new Map([["Winrate", "winrate"], ["Ocurrencias", "ocurrencias"]]), {value: "winrate"}));
+```
+
+```js
+const combos = porCombinacion(f);
+display(html`<div class="scroll-x">${resize((width) => graficoCombinaciones(combos, modoCombos, width))}</div>`);
+```
+
+</div>
+
+<div class="card ancho">
+
+```js
+const cubo = porCubo(f);
+display(html`<div class="paneles">
+  <div>${resize((width) => graficoCubo(cubo.draft, "Duración del draft (min)", width))}</div>
+  <div>${resize((width) => graficoCubo(cubo.partida, "Duración de las partidas (min)", width))}</div>
 </div>`);
 ```
+
+</div>

@@ -4,16 +4,19 @@ title: Detalle
 
 # Detalle
 
-<p class="subtitulo">Tabla por jugador y listado de partidas, con búsqueda, orden por columna y descarga en CSV. Respeta los filtros.</p>
-
 ```js
 import * as Inputs from "npm:@observablehq/inputs";
-import {prepararDatos, filtrar, filtrarPartidas, porJugador} from "./components/datos.js";
+import {prepararDatos, filtrarFechas, porJugador} from "./components/datos.js";
 import {crearFiltros} from "./components/filtros.js";
 import {botonCSV} from "./components/csv.js";
+import {avisoDatos} from "./components/aviso.js";
 import {pct, num, fechaCorta} from "./components/tema.js";
 
 const datos = prepararDatos(await FileAttachment("data/draftapp.json").json());
+```
+
+```js
+display(avisoDatos(datos.meta));
 ```
 
 ```js
@@ -21,25 +24,23 @@ const filtros = view(crearFiltros(datos));
 ```
 
 ```js
-const filas = filtrar(datos.filas, filtros);
-const resumenJugadores = porJugador(filas);
-// La tabla usa UNA fila por partida: entra si participa algún jugador seleccionado.
-const partidas = filtrarPartidas(datos, filtros);
+const f = filtrarFechas(datos, filtros);
+const resumenJugadores = porJugador(f.filasPartida);
+// Una fila por partida oficial; la fecha es siempre la del evento.
+const partidas = f.partidas;
 const columnas = {
-  fecha: "Fecha", evento: "Evento", ronda: "Ronda", partida: "Partida",
-  jugador_a: "Jugador A", color_a: "Color A", jugador_b: "Jugador B", color_b: "Color B",
-  ganador: "Ganador", duracion_min: "Duración (min)"
+  fecha: "Fecha", evento: "Evento", fase: "Fase", numero: "Partida",
+  jugador_a: "Jugador A", color_a: "Colores A", jugador_b: "Jugador B", color_b: "Colores B",
+  ganador: "Ganador", empieza: "Jugando primero", duracion_min: "Duración (min)", cubo: "Cubo"
 };
 ```
 
 <div class="card">
 
-## Por jugador
-
 ```js
 display(Inputs.table(resumenJugadores, {
   columns: ["jugador", "jugadas", "ganadas", "winrate", "duracion"],
-  header: {jugador: "Jugador", jugadas: "Jugadas", ganadas: "Ganadas", winrate: "Winrate", duracion: "Duración media (min)"},
+  header: {jugador: "Jugador", jugadas: "Partidas", ganadas: "Ganadas", winrate: "Winrate", duracion: "Duración media (min)"},
   format: {winrate: pct, duracion: (x) => num(x, 1)},
   sort: "winrate",
   reverse: true,
@@ -51,8 +52,6 @@ display(Inputs.table(resumenJugadores, {
 </div>
 
 <div class="card">
-
-## Partidas
 
 ```js
 const buscadas = view(Inputs.search(partidas, {placeholder: "Buscar por jugador, evento, color, ganador…"}));
@@ -66,7 +65,7 @@ display(botonCSV(buscadas, columnas, "partidas.csv"));
 display(Inputs.table(buscadas, {
   columns: Object.keys(columnas),
   header: columnas,
-  format: {fecha: fechaCorta},
+  format: {fecha: fechaCorta, empieza: (x) => x ?? "—", color_a: (x) => x ?? "—", color_b: (x) => x ?? "—"},
   rows: 15,
   layout: "auto"
 }));

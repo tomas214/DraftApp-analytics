@@ -1,25 +1,26 @@
 name: Deploy a GitHub Pages
 
+# Publica el sitio con datos REALES de la base (ver docs/datos.md).
+# FALLA-SEGURA: si el build falla (datos vencidos, verificación en false, base inalcanzable...) no hay deploy y queda publicada la versión anterior.
 on:
   push:
     branches: [main]
   workflow_dispatch:
-  # Para refrescar los datos periódicamente (cuando haya datos reales), descomentar:
-  # schedule:
-  #   - cron: "0 6 * * *"   # todos los días a las 06:00 UTC
+  schedule:
+    # Todos los días a las 09:00 UTC: la base se refresca sola a las 08:30 UTC.
+    - cron: "0 9 * * *"
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
+# Nunca dos corridas a la vez: el rol de lectura de la base permite como máximo 2 conexiones.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-24.04
+    environment: datos
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -27,11 +28,29 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run build
-        # Cuando haya datos reales, pasar credenciales como secrets, por ejemplo:
-        # env:
-        #   DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      - uses: actions/configure-pages@v6
+
+      - name: Pruebas del loader (cliente falso, sin base)
+        run: npm test
+
+      - name: Build con datos reales
+        # Las credenciales entran SOLO en este paso. REQUIRE_REAL_DATA=1: si falta algo o falla la extracción, el build falla
+        # (nunca cae a datos sintéticos).
+        env:
+          REQUIRE_REAL_DATA: "1"
+          ANALYTICS_DB_HOST: ${{ vars.ANALYTICS_DB_HOST }}
+          ANALYTICS_DB_USER: ${{ vars.ANALYTICS_DB_USER }}
+          ANALYTICS_DB_PASSWORD: ${{ secrets.ANALYTICS_READER_PASSWORD }}
+        run: npm run build
+
+      - name: Verificar que dist no contiene credenciales, UUID ni correos
+        # Imprime solo el TIPO de hallazgo, nunca lo encontrado. Falla si faltan las variables (no da un "ok" vacío).
+        env:
+          ANALYTICS_DB_HOST: ${{ vars.ANALYTICS_DB_HOST }}
+          ANALYTICS_DB_USER: ${{ vars.ANALYTICS_DB_USER }}
+          ANALYTICS_DB_PASSWORD: ${{ secrets.ANALYTICS_READER_PASSWORD }}
+        run: node scripts/verificar-dist.mjs dist
+
+      # Sin actions/configure-pages: el build no la necesita (base ya está en observablehq.config.js) y pediría permisos de Pages en este job.
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
@@ -42,6 +61,9 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
     steps:
       - id: deployment
         uses: actions/deploy-pages@v5
