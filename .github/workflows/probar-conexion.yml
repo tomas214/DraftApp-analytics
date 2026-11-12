@@ -1,0 +1,125 @@
+name: Probar conexión a los datos
+
+# Prueba MANUAL de la conexión de solo lectura a la base de datos curada (ver docs/datos.md).
+# No lee ni publica datos de personas: el log solo muestra conteos y nombres de chequeos.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# El rol de lectura tiene un límite de 2 conexiones: nunca dos corridas a la vez.
+concurrency:
+  group: probar-conexion
+  cancel-in-progress: false
+
+jobs:
+  probar:
+    # Solo desde main (el Environment "datos" también está restringido a esa rama).
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: datos
+    timeout-minutes: 5
+    defaults:
+      run:
+        shell: bash
+    env:
+      # Datos de conexión NO secretos. La contraseña solo entra en los pasos que se conectan.
+      PGHOST: ${{ vars.ANALYTICS_DB_HOST }}
+      PGUSER: ${{ vars.ANALYTICS_DB_USER }}
+      PGPORT: "5432"
+      PGDATABASE: postgres
+      PGSSLMODE: require
+      PGCONNECT_TIMEOUT: "15"
+      PGAPPNAME: probar-conexion
+    steps:
+      # No hay checkout ni otras actions de terceros: este job maneja un secreto y no necesita el código del repo.
+
+      - name: Verificar psql
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+          psql --version
+
+      - name: "1. Lectura: conteos, refresco y verificación (transacción de solo lectura)"
+        env:
+          PGPASSWORD: ${{ secrets.ANALYTICS_READER_PASSWORD }}
+        run: |
+          psql --no-psqlrc -v ON_ERROR_STOP=1 -f - <<'SQL'
+          BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
+
+          select current_user, session_user, current_setting('transaction_read_only') as transaction_read_only;
+
+          select 'jugadores' as tabla, count(*) as filas from analytics.jugadores
+          union all select 'cubos', count(*) from analytics.cubos
+          union all select 'eventos', count(*) from analytics.eventos
+          union all select 'participaciones', count(*) from analytics.participaciones
+          union all select 'enfrentamientos', count(*) from analytics.enfrentamientos
+          union all select 'partidas', count(*) from analytics.partidas;
+
+          select * from analytics_control.refresco;
+
+          select chequeo, ok from analytics_control.verificacion order by 1;
+
+          -- Falla el paso si la sesión no es de solo lectura o si algún chequeo no es true.
+          DO $$
+          DECLARE
+            fallidos text;
+          BEGIN
+            IF current_setting('transaction_read_only') <> 'on' THEN
+              RAISE EXCEPTION 'la transacción no es de solo lectura';
+            END IF;
+            SELECT string_agg(chequeo, ', ' ORDER BY chequeo) INTO fallidos
+              FROM analytics_control.verificacion WHERE ok IS NOT TRUE;
+            IF fallidos IS NOT NULL THEN
+              RAISE EXCEPTION 'chequeos de verificacion con ok distinto de true: %', fallidos;
+            END IF;
+          END $$;
+
+          COMMIT;
+          SQL
+
+      - name: "2. Negativa: analytics_private debe estar denegado"
+        env:
+          PGPASSWORD: ${{ secrets.ANALYTICS_READER_PASSWORD }}
+        run: |
+          # La salida del cliente NO se imprime (un error de conexión podría incluir el host).
+          set +e
+          salida=$(psql --no-psqlrc -v ON_ERROR_STOP=1 -c "select count(*) from analytics_private.config" 2>&1)
+          codigo=$?
+          set -e
+          if [ "$codigo" -eq 0 ]; then
+            echo "FALLO: el rol pudo leer analytics_private.config. Tiene más acceso del debido."
+            exit 1
+          fi
+          if ! printf '%s' "$salida" | grep -qi 'permission denied'; then
+            echo "FALLO: la consulta falló pero NO por permisos (¿problema de conexión?). No se puede afirmar que el acceso esté denegado."
+            exit 1
+          fi
+          echo "OK: lectura de analytics_private.config denegada (permission denied), como se espera."
+
+      - name: "3. Negativa: insertar en analytics.cubos debe fallar"
+        env:
+          PGPASSWORD: ${{ secrets.ANALYTICS_READER_PASSWORD }}
+        run: |
+          # Si el insert prosperara, el ROLLBACK lo deshace antes de que el job falle.
+          set +e
+          salida=$(psql --no-psqlrc -v ON_ERROR_STOP=1 -f - 2>&1 <<'SQL'
+          BEGIN;
+          INSERT INTO analytics.cubos (id, nombre) VALUES (-1, 'prueba-no-debe-existir');
+          ROLLBACK;
+          SQL
+          )
+          codigo=$?
+          set -e
+          if [ "$codigo" -eq 0 ]; then
+            echo "FALLO: el insert en analytics.cubos NO falló. El rol tendría permisos de escritura."
+            exit 1
+          fi
+          if ! printf '%s' "$salida" | grep -q 'ERROR:'; then
+            echo "FALLO: la sentencia falló pero no con un error del servidor (¿problema de conexión?). No se puede afirmar que la escritura esté denegada."
+            exit 1
+          fi
+          echo "OK: el insert en analytics.cubos fue rechazado por el servidor, como se espera."
