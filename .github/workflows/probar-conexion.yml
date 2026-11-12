@@ -29,11 +29,16 @@ jobs:
       PGUSER: ${{ vars.ANALYTICS_DB_USER }}
       PGPORT: "5432"
       PGDATABASE: postgres
-      PGSSLMODE: require
+      # Certificado VERIFICADO de punta a punta (cadena contra la raíz de Supabase del repo y nombre de host)
+      PGSSLMODE: verify-full
+      PGSSLROOTCERT: ${{ github.workspace }}/certs/prod-ca-2021.crt
       PGCONNECT_TIMEOUT: "15"
       PGAPPNAME: probar-conexion
     steps:
-      # No hay checkout ni otras actions de terceros: este job maneja un secreto y no necesita el código del repo.
+      # Checkout solo para tener el certificado raíz público (certs/); sin credenciales persistidas.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Verificar psql
         run: |

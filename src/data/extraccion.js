@@ -5,7 +5,12 @@
 //  * FALLA-SEGURA: ante cualquier problema se lanza un error y NO se publica nada (el build falla y queda la versión anterior).
 //  * Nunca se escribe en el log (ni en los mensajes de error) el host, el usuario ni la contraseña.
 //  * El cliente se inyecta (`cliente.query(sql)`), así las pruebas usan un cliente falso sin base real.
+import fs from "node:fs";
 import pg from "pg";
+
+// Certificado raíz PÚBLICO de Supabase (Database Settings → SSL Configuration). Ruta fija dentro del repo: NO hay variable de entorno
+// ni opción para cambiarla ni para desactivar la verificación.
+const RUTA_CA = new URL("../../certs/prod-ca-2021.crt", import.meta.url);
 
 /** Un refresco más viejo que esto se considera vencido (la base se refresca a diario; 36 h = 1 día + margen). */
 export const MAX_ANTIGUEDAD_HORAS = 36;
@@ -248,18 +253,38 @@ export function credencialesDe(env) {
 }
 
 /**
- * Abre UNA conexión. SSL activado SIN verificar el certificado (pendiente: fijar el certificado raíz de Supabase; ver docs/datos.md).
- * Los errores de conexión se reducen a su código: el mensaje original puede incluir el host o el usuario.
+ * Lee el certificado raíz del repo. Falla si no existe, no se puede leer, no es un certificado o contiene una clave privada.
+ * Nunca hay un camino que continúe sin certificado.
  */
-export async function conectar(credenciales, ClienteDb = pg.Client) {
+export function leerCertificado(ruta = RUTA_CA) {
+  let texto;
+  try {
+    texto = fs.readFileSync(ruta, "utf8");
+  } catch {
+    throw new ErrorDatos("no se pudo leer el certificado raíz de Supabase (certs/prod-ca-2021.crt): no se conecta sin verificar el certificado.");
+  }
+  if (!texto.includes("-----BEGIN CERTIFICATE-----") || /PRIVATE KEY/.test(texto)) {
+    throw new ErrorDatos("certs/prod-ca-2021.crt no es un certificado público válido: no se conecta sin verificar el certificado.");
+  }
+  return texto;
+}
+
+/**
+ * Abre UNA conexión con SSL VERIFICADO: la cadena se valida contra el certificado raíz de Supabase del repo (certs/) y se verifica el
+ * nombre del host (comportamiento por defecto de TLS; no se reemplaza checkServerIdentity). No existe ninguna vía para conectar sin verificar.
+ * Los errores de conexión y de TLS se reducen a su código: el mensaje original puede incluir el host o el usuario.
+ * @param opciones.leerCa  lector del certificado (inyectable en pruebas)
+ */
+export async function conectar(credenciales, ClienteDb = pg.Client, {leerCa = leerCertificado} = {}) {
   const secretos = [credenciales.host, credenciales.user, credenciales.password];
+  const ca = leerCa(); // si falla, se lanza ANTES de crear el cliente
   const cliente = new ClienteDb({
     host: credenciales.host,
     user: credenciales.user,
     password: credenciales.password,
     port: credenciales.port,
     database: credenciales.database,
-    ssl: {rejectUnauthorized: false},
+    ssl: {ca, rejectUnauthorized: true},
     connectionTimeoutMillis: 15000,
     query_timeout: 60000,
     application_name: "draftapp-analytics-build",
