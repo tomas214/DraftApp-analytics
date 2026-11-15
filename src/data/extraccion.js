@@ -25,7 +25,7 @@ export const COLUMNAS_ESPERADAS = {
   "analytics.eventos": ["id", "nombre", "fecha", "event_type", "es_oficial", "estado", "competition_format", "match_format", "cubo_id", "duracion_draft_min"],
   "analytics.participaciones": ["evento_id", "jugador_id", "rol", "colores", "autoevaluacion"],
   "analytics.enfrentamientos": ["id", "evento_id", "ronda", "fase", "etapa", "jugador_a", "jugador_b", "ganador_id", "resultado", "con_mazo_prestado"],
-  "analytics.partidas": ["id", "enfrentamiento_id", "numero", "tipo", "estado", "jugador_a", "jugador_b", "ganador_id", "empieza_id", "duracion_min", "mazo_prestado_a", "mazo_prestado_b"],
+  "analytics.partidas": ["id", "enfrentamiento_id", "numero", "tipo", "estado", "jugador_a", "jugador_b", "ganador_id", "empieza_id", "duracion_min", "mazo_prestado_a", "mazo_prestado_b", "dif_vida_final"],
   "analytics_control.refresco": ["refrescado_en", "vigente"],
   "analytics_control.verificacion": ["chequeo", "ok"],
   "analytics_control.registro_limpieza": ["concepto", "cantidad"]
@@ -171,7 +171,9 @@ async function leerYValidar(cliente, ahora) {
     empieza_id: aEnteroONulo(r.empieza_id, "partidas.empieza_id"),
     duracion_min: aEnteroONulo(r.duracion_min, "partidas.duracion_min"),
     mazo_prestado_a: aBooleano(r.mazo_prestado_a, "partidas.mazo_prestado_a"),
-    mazo_prestado_b: aBooleano(r.mazo_prestado_b, "partidas.mazo_prestado_b")
+    mazo_prestado_b: aBooleano(r.mazo_prestado_b, "partidas.mazo_prestado_b"),
+    // Vida final del ganador menos la del perdedor. null = SIN DATO (partida sin eventos de vida), nunca 0. Puede ser negativo o 0.
+    dif_vida_final: aEnteroONulo(r.dif_vida_final, "partidas.dif_vida_final")
   }));
   const registro = (await filas("analytics_control.registro_limpieza")).map((r) => ({
     concepto: aTexto(r.concepto, "registro_limpieza.concepto"),

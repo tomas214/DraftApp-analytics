@@ -30,7 +30,9 @@
 //     jugador_a < jugador_b
 //     resultado   victoria | empate | pendiente   (ganador_id solo con victoria)
 // partidas:        {id, enfrentamiento_id, numero, tipo, estado, jugador_a, jugador_b, ganador_id, empieza_id, duracion_min,
-//                   mazo_prestado_a, mazo_prestado_b}
+//                   mazo_prestado_a, mazo_prestado_b, dif_vida_final}
+//     dif_vida_final  entero o null: vida final del ganador menos la del perdedor; puede ser negativo o 0 (abandono);
+//                     null = sin eventos de vida (SIN DATO, no es 0)
 //     tipo        draft | final | tiebreak               (nunca revenge)
 //     estado      completed
 //     empieza_id  null = sin dato (no existe en los primeros eventos)
@@ -63,6 +65,22 @@ export function generarSintetico() {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
   const gauss = () => Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand());
+  // Generador APARTE para el diferencial de vida: agregarlo no altera el resto de los datos sintéticos (misma semilla, mismos números).
+  let seedVida = SEMILLA ^ 0x5bd1e995;
+  const randVida = () => {
+    seedVida = (seedVida + 0x6d2b79f5) | 0;
+    let t = Math.imul(seedVida ^ (seedVida >>> 15), 1 | seedVida);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const gaussVida = () => Math.sqrt(-2 * Math.log(1 - randVida())) * Math.cos(2 * Math.PI * randVida());
+  // ~2 % sin dato (null), ~5 % abandonos (0 o negativo), el resto positivo y algo mayor en partidas cortas
+  const difVidaFinal = (duracion) => {
+    const r = randVida();
+    if (r < 0.02) return null;
+    if (r < 0.07) return -Math.round(randVida() * 8);
+    return Math.round(clamp(9 + (25 - duracion) * 0.25 + gaussVida() * 5, 1, 30));
+  };
   const pick = (a) => a[Math.floor(rand() * a.length)];
   const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
   const shuffle = (a) => {
@@ -165,7 +183,7 @@ export function generarSintetico() {
         const presA = roles.get(a) === "exile" || rand() < 0.03;
         const presB = roles.get(b) === "exile" || rand() < 0.03;
         prestado ||= presA || presB;
-        juegos.push({numero, gana, empieza, duracion, presA, presB});
+        juegos.push({numero, gana, empieza, duracion, presA, presB, difVida: difVidaFinal(duracion)});
       }
       const ganador = soloUna ? null : vA === vB ? null : vA > vB ? a : b;
       const resultado = soloUna ? "pendiente" : ganador === null ? "empate" : "victoria";
@@ -178,7 +196,8 @@ export function generarSintetico() {
         partidas.push({
           id: idPartida++, enfrentamiento_id: idE, numero: g.numero, tipo, estado: "completed", jugador_a: ja, jugador_b: jb,
           ganador_id: g.gana, empieza_id: g.empieza, duracion_min: g.duracion,
-          mazo_prestado_a: a < b ? g.presA : g.presB, mazo_prestado_b: a < b ? g.presB : g.presA
+          mazo_prestado_a: a < b ? g.presA : g.presB, mazo_prestado_b: a < b ? g.presB : g.presA,
+          dif_vida_final: g.difVida
         });
       }
       return ganador;

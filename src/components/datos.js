@@ -72,7 +72,8 @@ export function prepararDatos(raw) {
       fase: x.fase, tipo: p.tipo, numero: p.numero,
       jugador_a: jug.get(p.jugador_a), color_a: ma?.combo ?? null, jugador_b: jug.get(p.jugador_b), color_b: mb?.combo ?? null,
       ganador: jug.get(p.ganador_id), empieza: p.empieza_id == null ? null : jug.get(p.empieza_id),
-      duracion_min: p.duracion_min
+      duracion_min: p.duracion_min,
+      dif_vida: p.dif_vida_final ?? null // null = sin dato (nunca 0)
     });
     for (const [m, id, prestado] of [[ma, p.jugador_a, p.mazo_prestado_a], [mb, p.jugador_b, p.mazo_prestado_b]]) {
       filasPartida.push({
@@ -156,27 +157,21 @@ export function porCombinacion({mazos, filasEnf, filasPartida}) {
   });
 }
 
-/** Una fila por evento, con la duración media de partida y su desvío estándar. */
-export function serieEventos({eventos, partidas}) {
-  const dur = group(partidas, (p) => p.evento_id);
+/** Una fila por evento, con los inscriptos y la duración del draft (las variables por partida son boxplots: boxplotsPorEvento). */
+export function serieEventos({eventos}) {
   return eventos
-    .map((e) => {
-      const ds = (dur.get(e.id) ?? []).map((p) => p.duracion_min);
-      return {
-        evento: e.nombre, fecha: e.fecha, inscriptos: e.inscriptos, duracion_draft: e.duracion_draft_min,
-        duracion_partida: ds.length ? mean(ds) : null, desvio_partida: ds.length ? desvioPoblacional(ds) : null, n: ds.length
-      };
-    })
+    .map((e) => ({evento: e.nombre, fecha: e.fecha, inscriptos: e.inscriptos, duracion_draft: e.duracion_draft_min}))
     .sort((a, b) => a.fecha - b.fecha);
 }
 
 /**
- * Boxplot de la duración de partida por evento: mediana, cuartiles (método lineal, tipo 7), bigotes hasta el
- * último dato dentro de 1,5·RIC y atípicos como puntos.
+ * Boxplot por evento de una variable POR PARTIDA: mediana, cuartiles (método lineal, tipo 7), bigotes hasta el
+ * último dato dentro de 1,5·RIC y atípicos como puntos. `campo` es la variable de la partida: "duracion_min" (por defecto)
+ * o "dif_vida" (diferencial de vida final). Las partidas sin dato (null) se excluyen; `n` de cada caja = partidas CON dato.
  */
-export function boxplotsPorEvento({eventos, partidas}) {
+export function boxplotsPorEvento({eventos, partidas}, campo = "duracion_min") {
   const g = group(partidas, (p) => p.evento_id);
-  return cajasPorGrupo(eventos.map((e) => ({clave: {evento: e.nombre, fecha: e.fecha}, valores: (g.get(e.id) ?? []).map((p) => p.duracion_min)})));
+  return cajasPorGrupo(eventos.map((e) => ({clave: {evento: e.nombre, fecha: e.fecha}, valores: (g.get(e.id) ?? []).map((p) => p[campo])})));
 }
 
 /**
@@ -197,7 +192,8 @@ function cajasPorGrupo(grupos) {
   const cajas = [];
   const atipicos = [];
   for (const {clave, valores} of grupos) {
-    const v = [...valores].sort((a, b) => a - b);
+    // Los null (sin dato) se excluyen: nunca se toman como 0.
+    const v = valores.filter((x) => x !== null && x !== undefined).sort((a, b) => a - b);
     if (!v.length) continue;
     const q1 = quantile(v, 0.25), mediana = quantile(v, 0.5), q3 = quantile(v, 0.75);
     const ric = q3 - q1;
