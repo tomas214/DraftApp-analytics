@@ -48,6 +48,10 @@ display(avisoDatos(meta));
 - Las partidas con mazo prestado y las del exilio no cuentan en las estadísticas por colores.
 - En el análisis de **jugando primero / robando primero** quedan fuera las partidas sin dato de quién jugó primero: **${sinEmpieza}** partidas.
 
+## Diferencial de vida final
+
+Es la vida final del ganador menos la del perdedor al terminar la partida; el gráfico muestra la distribución por partida en cada evento (mediana, cuartiles, bigotes y valores atípicos). Si la partida terminó por abandono (rendición), la vida de quien abandona se toma como 0: el diferencial es la vida final del ganador. Se calcula sin walkovers ni venganzas. Las partidas sin registro de vida, o con registros de vida inconsistentes, quedan sin dato y se excluyen de este gráfico.
+
 ## Registro de limpieza
 
 Cuánto se descartó o se dejó sin valor al preparar los datos. Las cantidades menores a 5 se muestran como «<5».

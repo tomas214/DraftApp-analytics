@@ -11,7 +11,7 @@ import {crearFiltros} from "./components/filtros.js";
 import {kpis} from "./components/kpi.js";
 import {avisoDatos} from "./components/aviso.js";
 import {num} from "./components/tema.js";
-import {MIN_PARTIDAS, JUGANDO_PRIMERO, ROBANDO_PRIMERO, graficoDensidad, graficoCombinaciones, graficoSerie, graficoSerieBoxplot, graficoEmpezo, graficoValoracion, graficoCubo, graficoCuboBoxplot} from "./components/graficos.js";
+import {MIN_PARTIDAS, JUGANDO_PRIMERO, ROBANDO_PRIMERO, graficoDensidad, graficoCombinaciones, graficoSerie, graficoSerieBoxplot, VARIABLE_DIF_VIDA, graficoEmpezo, graficoValoracion, graficoCubo, graficoCuboBoxplot} from "./components/graficos.js";
 
 const datos = prepararDatos(await FileAttachment("data/draftapp.json").json());
 ```
@@ -40,11 +40,14 @@ display(kpis([
 <div class="card ancho">
 
 ```js
-const metricaSerie = view(Inputs.radio(new Map([["Inscriptos", "inscriptos"], ["Duración del draft", "draft"], ["Duración de partida", "partida"]]), {value: "inscriptos"}));
+const metricaSerie = view(Inputs.radio(new Map([["Inscriptos", "inscriptos"], ["Duración del draft", "draft"], ["Duración de partida", "partida"], ["Diferencial de vida final", "dif_vida"]]), {value: "inscriptos"}));
 ```
 
 ```js
-display(resize((width) => metricaSerie === "partida" ? graficoSerieBoxplot(boxplotsPorEvento(f), width) : graficoSerie(serieEventos(f), metricaSerie, width)));
+display(resize((width) =>
+  metricaSerie === "partida" ? graficoSerieBoxplot(boxplotsPorEvento(f), width)
+  : metricaSerie === "dif_vida" ? graficoSerieBoxplot(boxplotsPorEvento(f, "dif_vida"), width, VARIABLE_DIF_VIDA)
+  : graficoSerie(serieEventos(f), metricaSerie, width)));
 ```
 
 </div>

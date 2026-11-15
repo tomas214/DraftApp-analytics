@@ -26,6 +26,17 @@ test("dist limpio: sin hallazgos", () => {
   assert.equal(escanear(d, SEC).size, 0);
 });
 
+test("el JSON publicado con dif_vida_final (null, negativos y cero) no dispara falsos positivos", () => {
+  const partidas = [
+    {id: 281474976710655, enfrentamiento_id: 12345, numero: 1, duracion_min: 25, dif_vida_final: 12},
+    {id: 281474976710654, enfrentamiento_id: 12345, numero: 2, duracion_min: null, dif_vida_final: null},
+    {id: 281474976710653, enfrentamiento_id: 12345, numero: 3, duracion_min: 8, dif_vida_final: -3},
+    {id: 281474976710652, enfrentamiento_id: 12345, numero: 4, duracion_min: 9, dif_vida_final: 0}
+  ];
+  const d = dist({"_file/data/draftapp.json": JSON.stringify({meta: {fuente: "real"}, partidas})});
+  assert.equal(escanear(d, SEC).size, 0);
+});
+
 test("detecta cada tipo de hallazgo", () => {
   const casos = [
     ["contraseña", `x ${SEC.contraseña} y`],

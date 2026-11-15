@@ -90,7 +90,7 @@ const METRICAS_SERIE = {
   draft: {y: "duracion_draft", etiqueta: "Duración del draft (min)"}
 };
 
-/** 3. Serie temporal por evento. metrica: inscriptos | draft ("Duración de partida" usa graficoSerieBoxplot). */
+/** 3. Serie temporal por evento. metrica: inscriptos | draft ("Duración de partida" y "Diferencial de vida final" usan graficoSerieBoxplot). */
 export function graficoSerie(filas, metrica, width) {
   const m = METRICAS_SERIE[metrica];
   const datos = filas.filter((d) => d[m.y] != null);
@@ -106,11 +106,10 @@ export function graficoSerie(filas, metrica, width) {
     marks: [
       // Los días con draft se marcan con otro color
       Plot.ruleX(datos, {x: "fecha", stroke: COLOR_DRAFT, strokeOpacity: 0.3}),
-      m.desvio && Plot.ruleX(datos, {x: "fecha", y1: (d) => d[m.y] - d[m.desvio], y2: (d) => d[m.y] + d[m.desvio], stroke: COLOR_DRAFT, strokeWidth: 1.5}),
       Plot.lineY(datos, {x: "fecha", y: m.y, stroke: ACENTO, strokeWidth: 2, curve: "monotone-x"}),
       Plot.dot(datos, {
         x: "fecha", y: m.y, fill: COLOR_DRAFT, stroke: "white", strokeWidth: 1, r: 5, tip: true,
-        title: (d) => `${d.evento} · ${fechaCorta(d.fecha)}\n${m.etiqueta}: ${num(d[m.y], 1)}` + (m.desvio ? `\nDesvío estándar: ${num(d[m.desvio], 1)}` : "")
+        title: (d) => `${d.evento} · ${fechaCorta(d.fecha)}\n${m.etiqueta}: ${num(d[m.y], 1)}`
       })
     ]
   });
@@ -119,18 +118,22 @@ export function graficoSerie(filas, metrica, width) {
 // Boxplots: estilo y marcas COMPARTIDOS por todos los boxplots del sitio (duración de partida por día de draft y por cubo).
 const ALTO_BOXPLOT = 380;
 const CAJA = {color: COLOR_DRAFT, relleno: 0.35, grosor: 1.5, grosorMediana: 2.5, radioAtipico: 2.5};
-const textoCaja = (d, titulo) =>
+const textoCaja = (d, titulo, rotuloN) =>
   `${titulo}
 Mediana: ${num(d.mediana, 1)}
 Q1 – Q3: ${num(d.q1, 1)} – ${num(d.q3, 1)}
 Bigotes: ${num(d.bigoteMin, 1)} – ${num(d.bigoteMax, 1)}
-Partidas: ${d.n}`;
+${rotuloN}: ${d.n}`;
+
+// Variantes de rótulos según la variable que se dibuja con boxplots por evento (duración de partida o diferencial de vida final).
+export const VARIABLE_DURACION = {etiquetaY: "Duración de partida (min)", unidad: " min", rotuloN: "Partidas"};
+export const VARIABLE_DIF_VIDA = {etiquetaY: "Diferencial de vida final", unidad: "", rotuloN: "Partidas con dato"};
 
 /**
  * Marcas de un boxplot: bigotes con tapas, caja entre cuartiles, mediana y atípicos como puntos.
  * La posición en x la dan las funciones: x (centro), desde/hasta (extremos de la caja) y capDesde/capHasta (extremos de las tapas).
  */
-function marcasBoxplot(cajas, atipicos, {x, desde, hasta, capDesde, capHasta, titulo}) {
+function marcasBoxplot(cajas, atipicos, {x, desde, hasta, capDesde, capHasta, titulo, unidad = " min", rotuloN = "Partidas"}) {
   return [
     Plot.ruleX(cajas, {x, y1: "bigoteMin", y2: "q1", stroke: CAJA.color, strokeWidth: CAJA.grosor}),
     Plot.ruleX(cajas, {x, y1: "q3", y2: "bigoteMax", stroke: CAJA.color, strokeWidth: CAJA.grosor}),
@@ -138,19 +141,22 @@ function marcasBoxplot(cajas, atipicos, {x, desde, hasta, capDesde, capHasta, ti
     Plot.ruleY(cajas, {x1: capDesde, x2: capHasta, y: "bigoteMax", stroke: CAJA.color, strokeWidth: CAJA.grosor}),
     Plot.rect(cajas, {
       x1: desde, x2: hasta, y1: "q1", y2: "q3", fill: CAJA.color, fillOpacity: CAJA.relleno, stroke: CAJA.color, strokeWidth: CAJA.grosor, tip: true,
-      title: (d) => textoCaja(d, titulo(d))
+      title: (d) => textoCaja(d, titulo(d), rotuloN)
     }),
     Plot.ruleY(cajas, {x1: desde, x2: hasta, y: "mediana", stroke: "currentColor", strokeWidth: CAJA.grosorMediana}),
     Plot.dot(atipicos, {
       x, y: "valor", r: CAJA.radioAtipico, fill: "none", stroke: CAJA.color, strokeWidth: 1.2, tip: true,
       title: (d) => `${titulo(d)}
-Atípico: ${num(d.valor, 0)} min`
+Atípico: ${num(d.valor, 0)}${unidad}`
     })
   ];
 }
 
-/** 3 (opción "Duración de partida"). Un boxplot por día de draft; cajas de datos.js (boxplotsPorEvento). */
-export function graficoSerieBoxplot({cajas, atipicos}, width) {
+/**
+ * 3 (opciones "Duración de partida" y "Diferencial de vida final"). Un boxplot por día de draft; cajas de datos.js (boxplotsPorEvento).
+ * `variable`: VARIABLE_DURACION (por defecto) o VARIABLE_DIF_VIDA. El eje y no fuerza el cero (puede haber valores negativos).
+ */
+export function graficoSerieBoxplot({cajas, atipicos}, width, variable = VARIABLE_DURACION) {
   const mitad = 1.6 * DIA; // medio ancho de la caja, en días
   const fechas = cajas.map((d) => +d.fecha);
   const dominio = fechas.length ? [new Date(Math.min(...fechas) - 7 * DIA), new Date(Math.max(...fechas) + 7 * DIA)] : undefined;
@@ -160,14 +166,15 @@ export function graficoSerieBoxplot({cajas, atipicos}, width) {
       type: "utc", label: "Fecha", domain: dominio, ticks: "month", grid: true,
       tickFormat: (d) => d.toLocaleDateString("es-AR", {month: "short", year: "2-digit", timeZone: "UTC"})
     },
-    y: {label: "Duración de partida (min)", grid: true, nice: true},
+    y: {label: variable.etiquetaY, grid: true, nice: true},
     marks: [
       Plot.ruleX(cajas, {x: "fecha", stroke: COLOR_DRAFT, strokeOpacity: 0.3}), // día con draft
       ...marcasBoxplot(cajas, atipicos, {
         x: "fecha",
         desde: (d) => new Date(+d.fecha - mitad), hasta: (d) => new Date(+d.fecha + mitad),
         capDesde: (d) => new Date(+d.fecha - mitad / 2), capHasta: (d) => new Date(+d.fecha + mitad / 2),
-        titulo: (d) => `${d.evento} · ${fechaCorta(d.fecha)}`
+        titulo: (d) => `${d.evento} · ${fechaCorta(d.fecha)}`,
+        unidad: variable.unidad, rotuloN: variable.rotuloN
       })
     ]
   });

@@ -39,8 +39,11 @@ function base() {
       {id: 11, evento_id: "12345", ronda: null, fase: "regular", etapa: null, jugador_a: 2, jugador_b: 3, ganador_id: null, resultado: "pendiente", con_mazo_prestado: true}
     ],
     partidas: [
-      {id: 100, enfrentamiento_id: 10, numero: 1, tipo: "draft", estado: "completed", jugador_a: 1, jugador_b: 2, ganador_id: 1, empieza_id: 2, duracion_min: 25, mazo_prestado_a: false, mazo_prestado_b: false},
-      {id: 101, enfrentamiento_id: 10, numero: 2, tipo: "draft", estado: "completed", jugador_a: 1, jugador_b: 2, ganador_id: 2, empieza_id: null, duracion_min: null, mazo_prestado_a: false, mazo_prestado_b: false}
+      {id: 100, enfrentamiento_id: 10, numero: 1, tipo: "draft", estado: "completed", jugador_a: 1, jugador_b: 2, ganador_id: 1, empieza_id: 2, duracion_min: 25, mazo_prestado_a: false, mazo_prestado_b: false, dif_vida_final: 12},
+      {id: 101, enfrentamiento_id: 10, numero: 2, tipo: "draft", estado: "completed", jugador_a: 1, jugador_b: 2, ganador_id: 2, empieza_id: null, duracion_min: null, mazo_prestado_a: false, mazo_prestado_b: false, dif_vida_final: null},
+      // Diferencial negativo y cero (abandono): son valores válidos, no "sin dato"
+      {id: 102, enfrentamiento_id: 10, numero: 3, tipo: "draft", estado: "completed", jugador_a: 1, jugador_b: 2, ganador_id: 1, empieza_id: 1, duracion_min: 8, mazo_prestado_a: false, mazo_prestado_b: false, dif_vida_final: -3},
+      {id: 103, enfrentamiento_id: 10, numero: 4, tipo: "draft", estado: "completed", jugador_a: 1, jugador_b: 2, ganador_id: 2, empieza_id: 2, duracion_min: 9, mazo_prestado_a: false, mazo_prestado_b: false, dif_vida_final: "0"}
     ]
   };
 }
@@ -379,6 +382,46 @@ test("TLS real: un servidor cuyo certificado NO está firmado por la raíz de Su
   } finally {
     servidor.close();
   }
+});
+
+// ---- 6c. dif_vida_final (diferencial de vida final) ---------------------------------------------------------------------
+test("dif_vida_final: null es 'sin dato' (no 0); negativos y cero se conservan; texto numérico se convierte", async () => {
+  const r = await extraer(cliente(), {ahora: AHORA});
+  const por = Object.fromEntries(r.partidas.map((p) => [p.id, p.dif_vida_final]));
+  assert.equal(por[100], 12);
+  assert.strictEqual(por[101], null, "null se mantiene null");
+  assert.equal(por[102], -3);
+  assert.strictEqual(por[103], 0, "'0' llega como el número 0, distinto de null");
+  assert.ok(r.partidas.every((p) => "dif_vida_final" in p));
+});
+
+test("dif_vida_final: el SELECT pide la columna y la lista de columnas esperadas la incluye", async () => {
+  assert.ok(COLUMNAS_ESPERADAS["analytics.partidas"].includes("dif_vida_final"));
+  const c = cliente();
+  await extraer(c, {ahora: AHORA});
+  assert.ok(c.log.some((s) => s.startsWith("select") && s.includes("from analytics.partidas") && s.includes("dif_vida_final")));
+});
+
+test("dif_vida_final: si falta la columna en la base, falla con mensaje claro antes de leer datos", async () => {
+  const c = cliente(base(), {sinColumnas: ["analytics.partidas.dif_vida_final"]});
+  await rechaza(extraer(c, {ahora: AHORA}), /analytics\.partidas\.dif_vida_final/);
+  assert.ok(!c.log.some((s) => s.includes("from analytics.jugadores")));
+});
+
+test("dif_vida_final: un tipo inesperado falla (texto, decimal, booleano, fuera del rango seguro)", async () => {
+  for (const malo of ["abc", 1.5, true, "9007199254740993", {}]) {
+    const d = base();
+    d.partidas[0].dif_vida_final = malo;
+    await rechaza(extraer(cliente(d), {ahora: AHORA}), /partidas\.dif_vida_final/);
+  }
+});
+
+test("dif_vida_final: el generador sintético produce null, negativos y positivos", () => {
+  const v = generarSintetico().partidas.map((p) => p.dif_vida_final);
+  assert.ok(v.some((x) => x === null), "algunos null");
+  assert.ok(v.some((x) => x !== null && x < 0), "algunos negativos");
+  assert.ok(v.some((x) => x > 0), "algunos positivos");
+  assert.ok(v.every((x) => x === null || Number.isInteger(x)));
 });
 
 // ---- 7. el loader como proceso --------------------------------------------------------------------------------------------
